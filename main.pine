@@ -2,35 +2,49 @@
 strategy("Bearded Trading Supply/Demand", overlay=true, max_boxes_count=500, initial_capital=10000)
 
 // ==========================================
-// --- INPUTS TAB CONFIGURATIONS ---
+// --- SECTION 1: CORE STRATEGY INPUTS ---
 // ==========================================
-useDynamicSL = input.bool(false, "Use Dynamic Stop Loss (Adaptive Window)", group="Core Strategy Inputs")
-tickBuffer   = input.int(2, "Stop Loss Placement Outside Zone/Swing (Ticks)", group="Core Strategy Inputs")
-proximityPct = input.float(5.0, "Active Price Proximity %", group="Core Strategy Inputs")
-offset       = input.int(100, "Zone Forward Extension (Bars)", group="Core Strategy Inputs")
-rrRatio      = input.float(2.0, "Fallback Risk:Reward (Back Testing)", group="Core Strategy Inputs")
-useTP        = input.bool(true, "Draw Manual Take Profit Line", group="Core Strategy Inputs")
-tpBuffer     = input.int(10, "Take Profit Placement Inside/Beyond Zone (Ticks)", group="Core Strategy Inputs")
+useDynamicSL = input.bool(true, "Use Dynamic Stop Loss (Adaptive Window)", group="⚙️ Core Strategy Inputs")
+tickBuffer   = input.int(60, "Stop Loss Placement Outside Zone/Swing (Ticks)", group="⚙️ Core Strategy Inputs")
+useTP        = input.bool(true, "Draw Manual Take Profit Line", group="⚙️ Core Strategy Inputs")
+tpBuffer     = input.int(60, "Take Profit Placement Inside/Beyond Zone (Ticks)", group="⚙️ Core Strategy Inputs")
+proximityPct = input.float(5.0, "Active Price Proximity %", group="⚙️ Core Strategy Inputs")
+offset       = input.int(100, "Zone Forward Extension (Bars)", group="⚙️ Core Strategy Inputs")
 
 // ==========================================
-// --- STYLE TAB GROUP CONFIGURATIONS ---
+// --- SECTION 2: BOLLINGER BANDS ENGINE ---
 // ==========================================
-bullColor = input.color(color.new(color.green, 85), "Demand Zone Background Color", group="Style Tab Settings")
-bearColor = input.color(color.new(color.red, 85), "Supply Zone Background Color", group="Style Tab Settings")
+useBB      = input.bool(false, "Enable BB Volatility Overlay", group="📊 Bollinger Bands Engine")
+bbLength   = input.int(20, "BB Basis Length", minval=1, group="📊 Bollinger Bands Engine")
+bbSource   = input.source(close, "BB Source", group="📊 Bollinger Bands Engine")
+bbType     = input.string("EMA", "BB Basis Type", options=["SMA", "EMA"], group="📊 Bollinger Bands Engine")
+bbStdDev   = input.float(2.0, "BB Standard Deviation", minval=0.001, step=0.1, group="📊 Bollinger Bands Engine")
 
-// Stop Loss Line Customizer
-slColor   = input.color(color.red, "Stop Loss Line Color", group="Style Tab Settings")
-slWidth   = input.int(3, "Stop Loss Line Thickness", minval=1, maxval=10, group="Style Tab Settings")
-slStyleIn = input.string("Solid", "Stop Loss Line Format", options=["Solid", "Dashed", "Dotted"], group="Style Tab Settings")
+// ==========================================
+// --- SECTION 3: GRAPHIC & STYLE SETTINGS ---
+// ==========================================
+bullColor = input.color(color.new(color.green, 85), "Demand Zone Background Color", group="🎨 Graphic & Style Customizers")
+bearColor = input.color(color.new(color.red, 85), "Supply Zone Background Color", group="🎨 Graphic & Style Customizers")
 
-// Take Profit Line Customizer
-tpColor   = input.color(color.green, "Take Profit Line Color", group="Style Tab Settings")
-tpWidth   = input.int(3, "Take Profit Line Thickness", minval=1, maxval=10, group="Style Tab Settings")
-tpStyleIn = input.string("Solid", "Take Profit Line Format", options=["Solid", "Dashed", "Dotted"], group="Style Tab Settings")
+// Stop Loss Customizer
+slColor   = input.color(color.red, "Stop Loss Line Color", group="🎨 Graphic & Style Customizers")
+slWidth   = input.int(3, "Stop Loss Line Thickness", minval=1, maxval=10, group="🎨 Graphic & Style Customizers")
+slStyleIn = input.string("Solid", "Stop Loss Line Format", options=["Solid", "Dashed", "Dotted"], group="🎨 Graphic & Style Customizers")
 
-// Structural Vertical Unit Line Customizer
-unitColor   = input.color(color.white, "Vertical Unit Line Color", group="Style Tab Settings")
-unitStyleIn = input.string("Dashed", "Vertical Unit Line Format", options=["Solid", "Dashed", "Dotted"], group="Style Tab Settings")
+// Take Profit Customizer
+tpColor   = input.color(color.green, "Take Profit Line Color", group="🎨 Graphic & Style Customizers")
+tpWidth   = input.int(3, "Take Profit Line Thickness", minval=1, maxval=10, group="🎨 Graphic & Style Customizers")
+tpStyleIn = input.string("Solid", "Take Profit Line Format", options=["Solid", "Dashed", "Dotted"], group="🎨 Graphic & Style Customizers")
+
+// Structural Vertical Unit Connector Customizer
+unitColor   = input.color(color.white, "Vertical Unit Line Color", group="🎨 Graphic & Style Customizers")
+unitStyleIn = input.string("Dashed", "Vertical Unit Line Format", options=["Solid", "Dashed", "Dotted"], group="🎨 Graphic & Style Customizers")
+
+// Bollinger Bands Plots Customizer
+bbBasisColor = input.color(color.gray, "BB Basis Line Color", group="🎨 Graphic & Style Customizers")
+bbBasisWidth = input.int(1, "BB Basis Line Thickness", minval=1, maxval=10, group="🎨 Graphic & Style Customizers")
+bbBandsColor = input.color(color.blue, "BB Upper/Lower Lines Color", group="🎨 Graphic & Style Customizers")
+bbBandsWidth = input.int(1, "BB Upper/Lower Lines Thickness", minval=1, maxval=10, group="🎨 Graphic & Style Customizers")
 
 // --- Map String Dropdowns to Core Line Style Constants ---
 getLineStyle(styleString) =>
@@ -43,6 +57,23 @@ getLineStyle(styleString) =>
 slStyle   = getLineStyle(slStyleIn)
 tpStyle   = getLineStyle(tpStyleIn)
 unitStyle = getLineStyle(unitStyleIn)
+
+// ==========================================
+// --- BOLLINGER BANDS ENGINE CALCULATIONS ---
+// ==========================================
+float bbBasis = na
+if bbType == "SMA"
+    bbBasis := ta.sma(bbSource, bbLength)
+else
+    bbBasis := ta.ema(bbSource, bbLength)
+
+float bbDev = ta.stdev(bbSource, bbLength) * bbStdDev
+float upperBand = bbBasis + bbDev
+float lowerBand = bbBasis - bbDev
+
+plot(useBB ? bbBasis : na, "BB Basis", color=bbBasisColor, linewidth=bbBasisWidth)
+plot(useBB ? upperBand : na, "BB Upper", color=bbBandsColor, linewidth=bbBandsWidth)
+plot(useBB ? lowerBand : na, "BB Lower", color=bbBandsColor, linewidth=bbBandsWidth)
 
 // --- Constants for Initial Unconfirmed State ---
 color orangeOutline = color.new(color.orange, 30)
@@ -79,7 +110,7 @@ var line[] supplyTPLines = array.new_line()
 var line[] demandUnitLines = array.new_line()
 var line[] supplyUnitLines = array.new_line()
 
-// --- New Tracking Arrays for Custom Horizontal Border Elements ---
+// --- Tracking Arrays for Custom Horizontal Border Elements ---
 var line[] demandBorderLinesTop = array.new_line()
 var line[] demandBorderLinesBot = array.new_line()
 var line[] supplyBorderLinesTop = array.new_line()
@@ -176,7 +207,6 @@ if isDemandTrigger and not checkOverlap(demandBoxes, potentialDemandBaseHigh, po
     line unitLine = line.new(x1=currentBaseBar, y1=demandSLPrice, x2=currentBaseBar, y2=demandTPPrice, color=unitColor, width=1, style=unitStyle)
     array.push(demandUnitLines, unitLine)
 
-    // Manual borders pushed into corresponding tracking arrays to protect garbage collection
     line topBorder = line.new(x1=currentBaseBar, y1=potentialDemandBaseHigh, x2=bar_index + offset, y2=potentialDemandBaseHigh, color=orangeOutline, width=1, style=line.style_solid)
     line botBorder = line.new(x1=currentBaseBar, y1=potentialDemandBaseLow, x2=bar_index + offset, y2=potentialDemandBaseLow, color=orangeOutline, width=1, style=line.style_solid)
     array.push(demandBorderLinesTop, topBorder)
@@ -236,7 +266,6 @@ if isSupplyTrigger and not checkOverlap(supplyBoxes, potentialSupplyBaseHigh, po
     line unitLine = line.new(x1=currentBaseBar, y1=supplySLPrice, x2=currentBaseBar, y2=supplyTPPrice, color=unitColor, width=1, style=unitStyle)
     array.push(supplyUnitLines, unitLine)
 
-    // Manual borders pushed into corresponding tracking arrays to protect garbage collection
     line topBorder = line.new(x1=currentBaseBar, y1=potentialSupplyBaseHigh, x2=bar_index + offset, y2=potentialSupplyBaseHigh, color=orangeOutline, width=1, style=line.style_solid)
     line botBorder = line.new(x1=currentBaseBar, y1=potentialSupplyBaseLow, x2=bar_index + offset, y2=potentialSupplyBaseLow, color=orangeOutline, width=1, style=line.style_solid)
     array.push(supplyBorderLinesTop, topBorder)
@@ -308,7 +337,7 @@ if array.size(demandBoxes) > 0
                     float tp = line.get_y1(tpL)
                     
                     strategy.entry("Long", strategy.long)
-                    strategy.exit("X Long", "Long", stop=sl, limit=useTP ? tp : close + ((close - sl) * rrRatio))
+                    strategy.exit("X Long", "Long", stop=sl, limit=useTP ? tp : close)
                     
                     box.set_border_color(b, color.new(color.green, 40))
                     box.set_border_width(b, 2)
@@ -381,7 +410,7 @@ if array.size(supplyBoxes) > 0
                     float tp = line.get_y1(tpL)
                     
                     strategy.entry("Short", strategy.short)
-                    strategy.exit("X Short", "Short", stop=sl, limit=useTP ? tp : close - ((sl - close) * rrRatio))
+                    strategy.exit("X Short", "Short", stop=sl, limit=useTP ? tp : close)
                     
                     box.set_border_color(b, color.new(color.red, 40))
                     box.set_border_width(b, 2)

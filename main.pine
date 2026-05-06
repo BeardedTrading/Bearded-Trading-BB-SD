@@ -1,19 +1,39 @@
 //@version=6
 strategy("Bearded Trading Supply/Demand", overlay=true, max_boxes_count=500, initial_capital=10000)
 
-// --- Inputs ---
+// --- Inputs (Inputs Tab) ---
 useDynamicSL = input.bool(false, "Use Dynamic Stop Loss (Adaptive Window)")
 tickBuffer   = input.int(2, "Stop Loss Placement Outside Zone/Swing (Ticks)")
 proximityPct = input.float(5.0, "Active Price Proximity %")
 offset       = input.int(100, "Zone Forward Extension (Bars)")
 rrRatio      = input.float(2.0, "Fallback Risk:Reward (Back Testing)")
-
-// --- New Take Profit Settings ---
 useTP        = input.bool(true, "Draw Manual Take Profit Line")
 tpBuffer     = input.int(10, "Take Profit Placement Inside/Beyond Zone (Ticks)")
 
-bullColor    = input.color(color.new(color.green, 85), "Demand Color")
-bearColor    = input.color(color.new(color.red, 85), "Supply Color")
+// --- Style Configurations (Relocated to Style Tab via display.settings) ---
+bullColor = input.color(color.new(color.green, 85), "Demand Zone Background Color", display = display.settings)
+bearColor = input.color(color.new(color.red, 85), "Supply Zone Background Color", display = display.settings)
+
+// Stop Loss Line Customizer
+slColor   = input.color(color.red, "Stop Loss Line Color", display = display.settings)
+slWidth   = input.int(3, "Stop Loss Line Thickness", minval=1, maxval=10, display = display.settings)
+slStyleIn = input.string("Solid", "Stop Loss Line Format", options=["Solid", "Dashed", "Dotted"], display = display.settings)
+
+// Take Profit Line Customizer
+tpColor   = input.color(color.green, "Take Profit Line Color", display = display.settings)
+tpWidth   = input.int(3, "Take Profit Line Thickness", minval=1, maxval=10, display = display.settings)
+tpStyleIn = input.string("Solid", "Take Profit Line Format", options=["Solid", "Dashed", "Dotted"], display = display.settings)
+
+// --- Map String Dropdowns to Core Line Style Constants ---
+getLineStyle(styleString) =>
+    switch styleString
+        "Solid"  => line.style_solid
+        "Dashed" => line.style_dashed
+        "Dotted" => line.style_dotted
+        => line.style_solid
+
+slStyle = getLineStyle(slStyleIn)
+tpStyle = getLineStyle(tpStyleIn)
 
 // --- Constants for Initial Unconfirmed State ---
 color orangeOutline = color.new(color.orange, 30)
@@ -126,11 +146,11 @@ if isDemandTrigger and not checkOverlap(demandBoxes, potentialDemandBaseHigh, po
             if not na(structuralLow) and structuralLow < boxBot
                 demandSLPrice := structuralLow - (syminfo.mintick * tickBuffer)
         
-    line slLine = line.new(x1=currentBaseBar, y1=demandSLPrice, x2=currentBaseBar + 5, y2=demandSLPrice, color=color.red, width=3, style=line.style_solid)
+    line slLine = line.new(x1=currentBaseBar, y1=demandSLPrice, x2=currentBaseBar + 5, y2=demandSLPrice, color=slColor, width=slWidth, style=slStyle)
     array.push(demandSLLines, slLine)
     
     float demandTPPrice = potentialDemandBaseHigh + (syminfo.mintick * tpBuffer)
-    line tpLine = line.new(x1=currentBaseBar, y1=demandTPPrice, x2=currentBaseBar + 5, y2=demandTPPrice, color=useTP ? color.green : color.new(color.green, 100), width=3, style=line.style_solid)
+    line tpLine = line.new(x1=currentBaseBar, y1=demandTPPrice, x2=currentBaseBar + 5, y2=demandTPPrice, color=useTP ? tpColor : color.new(tpColor, 100), width=tpWidth, style=tpStyle)
     array.push(demandTPLines, tpLine)
     
     lastDemandBar := currentBaseBar
@@ -176,11 +196,11 @@ if isSupplyTrigger and not checkOverlap(supplyBoxes, potentialSupplyBaseHigh, po
             if not na(structuralHigh) and structuralHigh > boxTop
                 supplySLPrice := structuralHigh + (syminfo.mintick * tickBuffer)
         
-    line slLine = line.new(x1=currentBaseBar, y1=supplySLPrice, x2=currentBaseBar + 5, y2=supplySLPrice, color=color.red, width=3, style=line.style_solid)
+    line slLine = line.new(x1=currentBaseBar, y1=supplySLPrice, x2=currentBaseBar + 5, y2=supplySLPrice, color=slColor, width=slWidth, style=slStyle)
     array.push(supplySLLines, slLine)
     
     float supplyTPPrice = potentialSupplyBaseLow - (syminfo.mintick * tpBuffer)
-    line tpLine = line.new(x1=currentBaseBar, y1=supplyTPPrice, x2=currentBaseBar + 5, y2=supplyTPPrice, color=useTP ? color.green : color.new(color.green, 100), width=3, style=line.style_solid)
+    line tpLine = line.new(x1=currentBaseBar, y1=supplyTPPrice, x2=currentBaseBar + 5, y2=supplyTPPrice, color=useTP ? tpColor : color.new(tpColor, 100), width=tpWidth, style=tpStyle)
     array.push(supplyTPLines, tpLine)
     
     lastSupplyBar := currentBaseBar
@@ -214,7 +234,6 @@ if array.size(demandBoxes) > 0
                 array.set(demandTouched, i, true)
                 
         if bar_index > cBar + 1
-            // Refined Validation: Move to Armed (State 1) if price breaks close above top OR logs complete detachment low
             if (currentState == 0 or currentState == 3) and (close > bTop or low > bTop)
                 currentState := 1
             if currentState == 1 and low <= bTop and high >= bBot
@@ -251,8 +270,6 @@ if array.size(demandBoxes) > 0
                     if not na(tLbl)
                         label.delete(tLbl)
                     array.set(demandTradeLabels, i, signalLabel)
-            
-            // Fixed: Extension line logic completely removed here to preserve fixed 5-bar constraints
             box.set_right(b, bar_index + offset)
 
 // Supply Management
@@ -279,7 +296,6 @@ if array.size(supplyBoxes) > 0
                 array.set(supplyTouched, i, true)
                 
         if bar_index > cBar + 1
-            // Refined Validation: Move to Armed (State 1) if price breaks close below bottom OR logs complete detachment high
             if (currentState == 0 or currentState == 3) and (close < bBot or high < bBot)
                 currentState := 1
             if currentState == 1 and high >= bBot and low <= bTop
@@ -316,8 +332,6 @@ if array.size(supplyBoxes) > 0
                     if not na(tLbl)
                         label.delete(tLbl)
                     array.set(supplyTradeLabels, i, signalLabel)
-            
-            // Fixed: Extension line logic completely removed here to preserve fixed 5-bar constraints
             box.set_right(b, bar_index + offset)
 
 // --- Alert Execution ---

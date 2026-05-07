@@ -72,16 +72,17 @@ State 3 represents trade confirmation and immediate risk isolation. Upon a confi
 | Signal Tier | Requirements | Visual Style |
 | :--- | :--- | :--- |
 | **A++ (Elite)** | BB Touch (within `bbLookback`) **AND** EMA Close Distance met | Solid Bold Hue (Vivid Intensity) |
-| **A+ (Premium)** | BB Touch **OR** EMA Close Distance met | Intermediate Bold Shade |
+| **A+ (Premium)** | EMA Slope agrees with Direction **AND** (BB Touch **OR** EMA Close met) | Intermediate Bold Shade |
 | **Standard** | Core Retest Engine fired without extra confluence | Lighter Bold Shade |
 
 #### A. Confluence Filters
 * **BB Lookback Window:** Scans a custom historical window (`bbLookback`) prior to the signal for volatility exhaustion (touches/pierces of the upper/lower bands).
 * **EMA Basis Threshold:** Requires the signal candle to close a specific distance (adjustable points via `emaThreshold`) above or below the 20-period EMA basis line to qualify for premium ratings.
+* **Trend Alignment (Slope):** For **A+** ratings, the slope of the 20-period EMA must agree with the trade direction (sloping up for Buys, down for Sells).
 
 #### B. Execution & Graphic Output
 * **Broker Execution:** Executes a `strategy.entry()` order using the static y-positions of the original anchor lines (`line.get_y1()`) to calculate risk distribution.
-* **Signal Marker Mapping:** Prints bold blue **BUY** or red **SELL** triangle labels.
+* **Signal Marker Mapping:** Prints bold blue **BUY** or red **SELL** triangle labels with tiered suffixes (e.g., BUY A++).
 * **The Infinite Retest Loop Reset:** After a signal fires, the zone switches to State 3 and becomes inactive. It refuses to fire again until price completely leaves the level, resetting the sequence back to **State 1**.
 
 ---

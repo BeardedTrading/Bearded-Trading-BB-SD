@@ -180,12 +180,9 @@ if isDemandTrigger and not checkOverlap(demandBoxes, potentialDemandBaseHigh, po
             float structuralLow = na
             for j = 1 to lookbackBars - 1
                 int histIndex = j
-                
                 if low[histIndex] <= prevBoxTop
                     break
-                    
                 bool isTrueSwingLow = (low[histIndex] <= low[histIndex + 1]) and (low[histIndex] <= low[histIndex - 1])
-                
                 if isTrueSwingLow
                     if na(structuralLow) or low[histIndex] < structuralLow
                         structuralLow := low[histIndex]
@@ -246,16 +243,12 @@ if isSupplyTrigger and not checkOverlap(supplyBoxes, potentialSupplyBaseHigh, po
             float structuralHigh = na
             for j = 1 to lookbackBars - 1
                 int histIndex = j
-                
                 if high[histIndex] >= prevBoxBottom
                     break
-                    
                 bool isTrueSwingHigh = (high[histIndex] >= high[histIndex + 1]) and (high[histIndex] >= high[histIndex - 1])
-                
                 if isTrueSwingHigh
                     if na(structuralHigh) or high[histIndex] > structuralHigh
                         structuralHigh := high[histIndex]
-            
             if not na(structuralHigh) and structuralHigh > boxTop
                 supplySLPrice := structuralHigh + (syminfo.mintick * tickBuffer)
         
@@ -347,6 +340,7 @@ if array.size(demandBoxes) > 0
                     box.set_border_color(b, color.new(color.green, 40))
                     box.set_border_width(b, 1)
                     
+                    // Confluence Logic Update
                     bool lowerBBTouched = false
                     if useBB
                         for j = 0 to bbLookback
@@ -354,17 +348,19 @@ if array.size(demandBoxes) > 0
                                 lowerBBTouched := true
                                 break
                     
-                    // UPGRADED FILTER: Checks if closing price clears the EMA by at least your custom points input
                     bool closeAboveEma = useBB and ((close - bbBasis) >= emaThreshold)
+                    bool emaSlopeUp   = useBB and (bbBasis > bbBasis[1])
                     
                     string labelString = "BUY"
                     color  labelColor  = #a0c4ff 
                     
                     if useBB
+                        // A++: Both conditions met
                         if lowerBBTouched and closeAboveEma
                             labelString := "BUY A++"
                             labelColor  := #0052cc 
-                        else if lowerBBTouched or closeAboveEma
+                        // A+: EMA Slope must agree with Direction AND (BB or Price Close) met
+                        else if emaSlopeUp and (lowerBBTouched or closeAboveEma)
                             labelString := "BUY A+"
                             labelColor  := #3a86ff 
                     
@@ -433,6 +429,7 @@ if array.size(supplyBoxes) > 0
                     box.set_border_color(b, color.new(color.red, 40))
                     box.set_border_width(b, 1)
                     
+                    // Confluence Logic Update
                     bool upperBBTouched = false
                     if useBB
                         for j = 0 to bbLookback
@@ -440,17 +437,19 @@ if array.size(supplyBoxes) > 0
                                 upperBBTouched := true
                                 break
                     
-                    // UPGRADED FILTER: Checks if closing price clears the EMA by at least your custom points input
                     bool closeBelowEma = useBB and ((bbBasis - close) >= emaThreshold)
+                    bool emaSlopeDown  = useBB and (bbBasis < bbBasis[1])
                     
                     string labelString = "SELL"
                     color  labelColor  = #ffb7b2 
                     
                     if useBB
+                        // A++: Both conditions met
                         if upperBBTouched and closeBelowEma
                             labelString := "SELL A++"
                             labelColor  := #9b0000 
-                        else if upperBBTouched or closeBelowEma
+                        // A+: EMA Slope must agree with Direction AND (BB or Price Close) met
+                        else if emaSlopeDown and (upperBBTouched or closeBelowEma)
                             labelString := "SELL A+"
                             labelColor  := #ff3333 
                     

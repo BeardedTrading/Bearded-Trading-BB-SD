@@ -28,17 +28,10 @@ Every zone begins its existence in State 0. It serves as an unconfirmed structur
 * **Breakout Confirmation:** A candidate transitions from a cached state to an official active zone box when a subsequent candle aggressively breaches the base extremes:
     * **Demand Zone:** A candle high breaks strictly above base high (`high > potentialDemandBaseHigh`).
     * **Supply Zone:** A candle low breaks strictly below base low (`low < potentialSupplyBaseLow`).
-* **The Overlap Prevention Filter:** Before structural allocation, the new zone is processed through the `checkOverlap()` layout grid scan. If the top and bottom coordinates fall completely within the boundaries of an already existing active box, it is classified as a duplicate and discarded.
+* **The Overlap Prevention Filter:** Before structural allocation, the new zone is processed through the `checkOverlap()` layout grid scan. If the top and bottom coordinates fall within the boundaries of an existing active box, it is classified as a duplicate and discarded.
 
 #### B. Risk Management & Visual Unit
-Upon breakout confirmation, risk management metrics are generated:
-* **Stop Loss Line Placement:** Rendered as a fixed 5-bar line anchor.
-    * **Demand SL:** Placed below the box floor line ($bBot - \text{tickBuffer}$).
-    * **Supply SL:** Placed above the box top ceiling line ($bTop + \text{tickBuffer}$).
-    * **Adaptive Protection (`useDynamicSL`):** The engine scans the historical swing landscape back to the previous zone origin to snap protection paths beyond key structural swing pivots.
-* **Take Profit Line Placement:**
-    * **Adaptive Target (`useDynamicTP`):** The engine scans a cluster of candles around zone creation to identify structural extremes and anchors the `tpBuffer` beyond that pivot.
-    * **Static Target:** Uses the manual `tpBuffer` value relative to the zone boundaries.
+Risk management price levels are no longer anchored to the zone discovery phase; instead, the calculation engine waits for the signal candle to define the trade's defensive and objective boundaries.
 
 ---
 
@@ -73,16 +66,17 @@ State 3 represents trade confirmation. Upon a confirmed reversal candle body (`c
 | **Standard** | Core Retest Engine fired without a recent Bollinger Band touch | Lighter Shade |
 
 #### A. Confluence Filters & Exclusion Rules
-* **BB Volatility Rejection:** For A+/A++ tiers, the price must have touched or pierced the respective Bollinger Band within the `bbLookback` window.
-* **EMA Trend Alignment (A++):** For the Elite Momentum rating, the slope of the EMA basis line must align with the trade (sloping up for BUY, sloping down for SELL).
-* **Opposing Band Exclusion:** Any setup that has touched the **opposing** Bollinger Band within the lookback window is disqualified from A+/A++ status to avoid trading into over-extension.
+* **BB Volatility Rejection:** For A+/A++ tiers, price must have touched or pierced the respective Bollinger Band within the `bbLookback` window.
+* **EMA Trend Alignment (A++):** For Elite Momentum, the slope of the EMA basis must align with the trade (sloping up for BUY, sloping down for SELL).
+* **Opposing Band Exclusion:** Any setup touching the **opposing** Bollinger Band within the lookback window is disqualified from A+/A++ status to avoid over-extension.
 
 #### B. Execution & Graphic Output
-* **Real-Time Visuals:** The strategy uses `calc_on_every_tick=true` to ensure Bollinger Bands and EMA basis lines update live on the forming candle.
-* **Confirmed Execution:** To prevent premature signals during tick updates, orders (`strategy.entry`) are gated by `barstate.isconfirmed`, ensuring execution only occurs upon candle close.
-* **Broker Execution:** Executes a `strategy.entry()` order using the static y-positions of the original anchor lines.
-* **Signal Marker Mapping:** Prints bold triangle labels with tiered suffixes (e.g., BUY A++).
-* **The Infinite Retest Loop Reset:** After a signal fires, the zone becomes inactive (State 3). It refuses to fire again until price completely leaves the level, resetting the sequence back to **State 1**.
+* **Real-Time Visuals:** The strategy uses `calc_on_every_tick=true` to ensure Bollinger Bands and EMA basis lines cover the forming candle.
+* **Execution Gating:** Orders are gated by `barstate.isconfirmed` to prevent "repainting" or premature entries before the signal candle closes.
+* **Dynamic Risk Anchoring:** * **Stop Loss (SL):** Calculated relative to the **Signal Candle Low** (Demand) or **High** (Supply) plus the `tickBuffer`.
+    * **Take Profit (TP):** Calculated relative to the **Signal Candle High** (Demand) or **Low** (Supply) plus the `tpBuffer`.
+    * **Visual Lines:** Lines are drawn starting on the signal candle and extend for 5 bars.
+* **The Infinite Retest Loop Reset:** After a signal fires, the zone switches to State 3 and becomes inactive until price resets the sequence back to **State 1**.
 
 ---
 
@@ -92,7 +86,7 @@ Active zones are evaluated on every bar close. If a zone violates baseline param
 
 ### Invalidation Triggers
 * **Raw Boundary Breach (Hard Breach):** A candle body explicitly closes beyond the defensive wall line (`close < bBot` for Demand; `close > bTop` for Supply).
-* **Proximity Limit Breach:** The current market price drifts too far away from the zone boundaries, exceeding the `proximityPct` threshold.
+* **Proximity Limit Breach:** The current market price drifts too far away, exceeding the `proximityPct` threshold.
 
 ---
 
@@ -101,10 +95,10 @@ Active zones are evaluated on every bar close. If a zone violates baseline param
 | Array Variable Name | Functional Application |
 | :--- | :--- |
 | `demandBoxes` / `supplyBoxes` | Visual zone block coordinates rendering |
-| `demandTradeLabels` / `supplyTradeLabels` | Bolded Tiered execution indicators (A++, A+, BUY/SELL) |
+| `demandTradeLabels` / `supplyTradeLabels` | Tiered execution indicators (A++, A+, BUY/SELL) |
 | `demandState` / `supplyState` | Controls the 4-stage anti-spam engine gates |
-| `demandSLLines` / `supplySLLines` | Visual Stop Loss fixed 5-bar target markers |
-| `demandTPLines` / `supplyTPLines` | Visual Take Profit target markers |
+| `demandSLLines` / `supplySLLines` | Signal-anchored Stop Loss markers (5-bar length) |
+| `demandTPLines` / `supplyTPLines` | Signal-anchored Take Profit markers (5-bar length) |
 
 ---
 
